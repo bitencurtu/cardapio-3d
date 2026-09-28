@@ -1,0 +1,39 @@
+CARDÁPIO COM MODELOS 3D INDIVIDUAIS
+
+Publique no Vercel enviando a pasta extraída: index.html, vercel.json,
+assets/ e models/ no mesmo nível. O ZIP já contém os arquivos GLB.
+
+Ao escolher um lanche, a foto aparece primeiro. Clique em VISUALIZAR MEU
+LANCHE EM 3D para carregar o modelo daquele item e depois em VER NA MINHA
+MESA em um aparelho compatível. Os combos mostram o modelo do respectivo
+lanche acompanhado de batata e refrigerante em uma bandeja.
+
+Os seis lanches têm a foto original na frente, com leve relevo, e laterais
+modeladas com texturas de ingredientes geradas por IA (arquivo
+assets/ingredientes-textura-ia.png). Como as fotos mostram um único ângulo,
+o verso e a profundidade continuam sendo aproximações da comida real.
+O lanche no AR mede aproximadamente 17 cm de largura, e o combo aparece
+com a bandeja perto de 30 cm. Use o controle TAMANHO na tela para ajustar.
+
+O círculo central indica onde a câmera procura a superfície e informa
+a distância e o desnível em relação ao celular. O AR posiciona
+automaticamente quando recebe pontos estáveis da mesa.
+Mesas desenhadas podem funcionar normalmente. Se a mesa for de vidro ou o
+celular não detectar uma superfície, após alguns segundos aparece o botão
+COLOCAR AQUI MANUALMENTE, processado no próximo quadro da câmera, que
+estima o ponto à frente do aparelho. A posição
+manual não conhece a altura real do tampo e pode exigir que você mude o
+ângulo do celular. Experimente mirar no tampo na hora de colocar.
+
+A oclusão começa DESATIVADA para o lanche aparecer com segurança. Depois
+de posicionar, toque em ATIVAR MÃO À FRENTE para experimentar. A mão só
+aparece à frente quando o navegador fornece profundidade, rastreamento de
+mão ou imagem da câmera com segmentação compatível. O aviso na tela do AR
+mostra quando esses dados estão disponíveis. Sem esses recursos o navegador
+não consegue garantir a sobreposição correta da mão.
+Se o rastreamento de profundidade ocultar o lanche num aparelho, toque em
+LANCHE SUMIU? MOSTRAR para desligar temporariamente a oclusão.
+
+A página usa Three.js, model-viewer e, onde houver suporte, MediaPipe de CDNs.
+O AR requer HTTPS, câmera e navegador/aparelho compatíveis. Não há pedidos
+ou pagamentos integrados. Teste o AR em celular real após publicar no Vercel.
