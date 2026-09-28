@@ -1,39 +1,85 @@
-CARDÁPIO COM MODELOS 3D INDIVIDUAIS
+CARDÁPIO 3D — VERSÃO CORRIGIDA (28/09/2026)
 
-Publique no Vercel enviando a pasta extraída: index.html, vercel.json,
-assets/ e models/ no mesmo nível. O ZIP já contém os arquivos GLB.
+PUBLICAÇÃO
+Extraia este ZIP e substitua os arquivos do projeto:
+- index.html
+- vercel.json
+- assets/ (inclui agora os scripts e a biblioteca 3D)
+- models/ (todos os modelos foram atualizados)
 
-Ao escolher um lanche, a foto aparece primeiro. Clique em VISUALIZAR MEU
-LANCHE EM 3D para carregar o modelo daquele item e depois em VER NA MINHA
-MESA em um aparelho compatível. Os combos mostram o modelo do respectivo
-lanche acompanhado de batata e refrigerante em uma bandeja.
+Esses arquivos e pastas ficam juntos na raiz do repositório. Não envie o
+ZIP fechado ao Vercel e não substitua apenas o index.html. É um site estático:
+sem npm install, sem etapa de build. Abra o endereço HTTPS depois do deploy.
+Abrir o HTML pelo gerenciador de arquivos não equivale a publicar o site.
 
-Os seis lanches têm a foto original na frente, com leve relevo, e laterais
-modeladas com texturas de ingredientes geradas por IA (arquivo
-assets/ingredientes-textura-ia.png). Como as fotos mostram um único ângulo,
-o verso e a profundidade continuam sendo aproximações da comida real.
-O lanche no AR mede aproximadamente 17 cm de largura, e o combo aparece
-com a bandeja perto de 30 cm. Use o controle TAMANHO na tela para ajustar.
+O QUE MUDOU
+1. A foto inicial não gira, não inclina e não captura gestos de arraste.
+2. Os botões de 3D e de mesa funcionam diretamente a partir da foto.
+3. Seis hambúrgueres reconstruídos com pão, carnes, queijo e recheios em
+   geometria 3D. Nada de foto projetada numa esfera ou placa na frente.
+4. Modelos simples e estilizados, com cores por vértice e um material por
+   produto. Eles são representações aproximadas, não escaneamentos das fotos.
+5. Batatas, lata e garrafas refeitas. Os combos usam os respectivos lanches.
+6. Removidos os controles de tamanho, de ativar a mão e de recuperar o lanche.
+7. Removidos MediaPipe, captura bruta de câmera e leitura contínua de pixels.
+8. O modelo é posicionado automaticamente após pontos estáveis da superfície.
+   O tempo até obter esses pontos depende do celular e do ambiente.
+9. Colocar aqui usa a pose da câmera mesmo se não houver detecção de mesa.
+10. Corrigida a limpeza ao sair do AR, inclusive durante carregamento.
 
-O círculo central indica onde a câmera procura a superfície e informa
-a distância e o desnível em relação ao celular. O AR posiciona
-automaticamente quando recebe pontos estáveis da mesa.
-Mesas desenhadas podem funcionar normalmente. Se a mesa for de vidro ou o
-celular não detectar uma superfície, após alguns segundos aparece o botão
-COLOCAR AQUI MANUALMENTE, processado no próximo quadro da câmera, que
-estima o ponto à frente do aparelho. A posição
-manual não conhece a altura real do tampo e pode exigir que você mude o
-ângulo do celular. Experimente mirar no tampo na hora de colocar.
+DIMENSÕES APROXIMADAS
+Lanches: cerca de 12,6–12,8 cm de largura e 9,5–12,2 cm de altura,
+dependendo dos recheios. Bandeja de combo: 35 cm de diâmetro.
+Uma unidade do modelo equivale a um metro. No AR não há zoom nem arraste
+para alterar o tamanho/posição do lanche após colocá-lo.
 
-A oclusão começa DESATIVADA para o lanche aparecer com segurança. Depois
-de posicionar, toque em ATIVAR MÃO À FRENTE para experimentar. A mão só
-aparece à frente quando o navegador fornece profundidade, rastreamento de
-mão ou imagem da câmera com segmentação compatível. O aviso na tela do AR
-mostra quando esses dados estão disponíveis. Sem esses recursos o navegador
-não consegue garantir a sobreposição correta da mão.
-Se o rastreamento de profundidade ocultar o lanche num aparelho, toque em
-LANCHE SUMIU? MOSTRAR para desligar temporariamente a oclusão.
+COLOCAR NA MESA
+Toque em VER NA MESA e autorize a câmera. Aponte para o tampo e mova o
+celular devagar. O círculo indica o centro da mira; quando há uma superfície,
+aparece também um anel no ponto detectado e a distância da câmera.
+O lanche é fixado assim que a detecção estabiliza e o modelo está pronto.
 
-A página usa Three.js, model-viewer e, onde houver suporte, MediaPipe de CDNs.
-O AR requer HTTPS, câmera e navegador/aparelho compatíveis. Não há pedidos
-ou pagamentos integrados. Teste o AR em celular real após publicar no Vercel.
+O botão COLOCAR AQUI fica disponível desde o começo. Ele usa um ponto real
+detectado quando disponível; caso contrário, estima um ponto a 55 cm na
+direção da câmera. Isso permite tentar posicionar mesmo sobre vidro, mas
+não mede a altura nem garante contato exato com o tampo. Para escolher outro
+ponto, saia do AR e entre de novo. Sem pose da câmera, o pedido manual fica
+aguardando a recuperação do rastreamento e não usa coordenadas inválidas.
+
+MÃO À FRENTE
+A oclusão é automática, sem botão, quando a sessão WebXR fornece dados de
+profundidade nativos no formato CPU. Objetos reais mais próximos da câmera
+podem encobrir o modelo, inclusive a mão. Não há reconhecimento separado da
+mão nem envio das imagens para um servidor.
+
+Isso NÃO é garantido em todos os aparelhos/navegadores. Sem profundidade,
+o lanche continua visível e a mão pode aparecer atrás dele. Bordas, rapidez
+e precisão dependem do sensor e do navegador. Não há uma segmentação pesada
+como alternativa automática; isso evita repetir o travamento anterior.
+No iPhone, a visualização é feita pelo Quick Look do sistema e suas capacidades.
+
+COMPATIBILIDADE
+Android: navegador e aparelho com suporte a immersive-ar e dom-overlay,
+HTTPS e serviços AR disponíveis. Detecção de superfícies, âncoras e
+profundidade são opcionais: falhas neles não bloqueiam a posição manual.
+iPhone: Safari e Quick Look; a biblioteca model-viewer é baixada apenas
+quando necessário. O 3D comum usa arquivos incluídos neste projeto.
+Sem suporte ao AR, a foto e a visualização 3D continuam disponíveis.
+
+VERIFICAÇÃO REALIZADA
+- Chrome: fotos estáticas, carregamento do 3D só ao solicitar, seis lanches,
+  combo, busca, retorno à imagem, largura de 390 px sem rolagem horizontal.
+- Sessões XR simuladas: manual sem fonte de hit-test; fonte sem resultados;
+  perda/retorno de pose; colocação automática; profundidade packed e float;
+  falha de profundidade; saída durante o carregamento; retorno ao preview.
+- Shader de profundidade: verificação com dados sintéticos de primeiro plano
+  e fundo. Não substitui teste do sensor real.
+- Não foi possível testar a câmera física do seu celular. Rastreamento,
+  oclusão da mão, ancoragem e fluidez no aparelho precisam de teste no link
+  publicado. Quick Look também precisa de verificação em iPhone real.
+
+REFERÊNCIAS TÉCNICAS
+https://immersive-web.github.io/depth-sensing/
+https://threejs.org/docs/pages/WebXRManager.html
+Biblioteca Three.js r186 incluída em assets/vendor/three/ com licença MIT.
+Não há pedidos, pagamentos ou banco de dados integrados.
