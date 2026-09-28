@@ -8,15 +8,19 @@ import {DepthOcclusion} from './depth.js';
 const $=id=>document.getElementById(id), viewer=document.querySelector('.viewer');
 const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 const categories=['Todos','Lanches','Combos','Porções','Bebidas'];
-let category='Todos',query='',selected=null,selection=0,previewGeneration=0;
-let renderer,scene,camera,controls,previewRoot=null,previewShown=false;
+let category='Todos',query='',selected=null,selection=0,previewGeneration=0,shownItems=[];
+let renderer,scene,camera,controls,previewRoot=null,previewShown=false,previewFrame=0;
 let xr=null,opening=false,arEpoch=0,iosModule=null,iosURL=null;
 const loader=new GLTFLoader(),models=new Map();
 const lowMemory=(navigator.deviceMemory||4)<=4;
+const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 
 function status(text,progress=0){$('status').textContent=text;$('loadBar').style.width=progress+'%';}
 function filtered(){return catalog.filter(i=>(category==='Todos'||i.cat===category)&&(!query||(i.name+' '+i.desc).toLocaleLowerCase('pt-BR').includes(query)));}
 function tabs(){
+  if($('tabs').children.length){
+    for(const b of $('tabs').children){const active=b.textContent===category;b.classList.toggle('active',active);b.setAttribute('aria-pressed',active);}return;
+  }
   $('tabs').replaceChildren(...categories.map(c=>{
     const b=document.createElement('button');b.className='tab'+(c===category?' active':'');
     b.textContent=c;b.setAttribute('aria-pressed',c===category);
@@ -24,7 +28,13 @@ function tabs(){
   }));
 }
 function cards(){
-  const items=filtered();$('products').replaceChildren();
+  const items=filtered();
+  if($('products').children.length&&items.length===shownItems.length&&items.every((item,i)=>item===shownItems[i])){
+    for(const [i,b] of [...$('products').querySelectorAll('.menuitem')].entries()){
+      const active=items[i]===selected;b.classList.toggle('active',active);b.setAttribute('aria-pressed',active);
+    }return;
+  }
+  shownItems=items;$('products').replaceChildren();
   if(!items.length){const p=document.createElement('p');p.className='nomatches';p.textContent='Nenhum produto encontrado.';$('products').append(p);}
   items.forEach(item=>{
     const b=document.createElement('button');b.className='menuitem'+(item===selected?' active':'');b.setAttribute('aria-pressed',item===selected);
@@ -35,7 +45,16 @@ function cards(){
     b.onclick=()=>choose(item);$('products').append(b);
   });
 }
+function stopPreview(){
+  cancelAnimationFrame(previewFrame);previewFrame=0;
+  if(controls){controls.enabled=false;controls.disconnect();}
+}
+function enablePreview(){
+  if(!controls||!previewShown)return;
+  controls.disconnect();controls.connect(renderer.domElement);controls.enabled=true;controls.cursorStyle='grab';
+}
 function removePreview(){
+  stopPreview();
   if(previewRoot){scene?.remove(previewRoot);previewRoot=null;}
   previewShown=false;viewer.classList.remove('is3d');
   $('viewBadge').textContent='IMAGEM DO PRODUTO';$('viewHint').textContent='';$('previewBtn').textContent='VISUALIZAR EM 3D';
@@ -64,17 +83,29 @@ function init3D(){
   scene.add(new THREE.HemisphereLight(0xffffff,0x59473b,2.1));
   const light=new THREE.DirectionalLight(0xffecd5,2.4);light.position.set(.5,.9,.7);scene.add(light);
   const fill=new THREE.DirectionalLight(0xffffff,.7);fill.position.set(-.6,.4,-.4);scene.add(fill);
-  controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=false;controls.enablePan=false;
+  controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=!reducedMotion.matches;controls.dampingFactor=.12;controls.enablePan=false;
   controls.maxPolarAngle=Math.PI*.66;controls.addEventListener('change',renderPreview);
+  controls.enabled=false;controls.disconnect();
+  reducedMotion.addEventListener('change',()=>{controls.enableDamping=!reducedMotion.matches;renderPreview();});
   renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();if(xr)xr.session.end().catch(()=>{});status('A visualização foi interrompida. Recarregue a página para tentar novamente.');});
   new ResizeObserver(resize).observe(viewer);resize();
 }
 function resize(){
-  if(!renderer||xr||opening)return;
-  const r=viewer.getBoundingClientRect();renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.4));
+  if(!renderer||xr||opening||renderer.xr.isPresenting)return;
+  const r=viewer.getBoundingClientRect();if(r.width<1||r.height<1)return;
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.4));
   renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix();renderPreview();
 }
-function renderPreview(){if(renderer&&!xr&&!opening&&previewShown)renderer.render(scene,camera);}
+function canRenderPreview(){return renderer&&!xr&&!opening&&!renderer.xr.isPresenting&&previewShown&&!document.hidden&&!renderer.getContext().isContextLost();}
+function renderPreview(){
+  if(!canRenderPreview()||previewFrame)return;
+  // Damping schedules only the frames it needs; no continuous loop while idle.
+  previewFrame=requestAnimationFrame(()=>{
+    previewFrame=0;if(!canRenderPreview())return;
+    controls.update();renderer.render(scene,camera);
+  });
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(previewFrame);previewFrame=0;}else renderPreview();});
 function ground(root){
   root.updateMatrixWorld(true);const box=new THREE.Box3().setFromObject(root),center=box.getCenter(new THREE.Vector3());
   root.position.x-=center.x;root.position.z-=center.z;root.position.y-=box.min.y;root.updateMatrixWorld(true);return root;
@@ -84,7 +115,8 @@ function fit(root){
   const fov=THREE.MathUtils.degToRad(camera.fov),effective=Math.min(fov,2*Math.atan(Math.tan(fov/2)*camera.aspect));
   const dist=sphere.radius/Math.sin(effective/2)*1.14;
   controls.target.copy(sphere.center);camera.position.copy(sphere.center).add(new THREE.Vector3(.32,.30,1).normalize().multiplyScalar(dist));
-  controls.minDistance=sphere.radius*1.7;controls.maxDistance=dist*2.5;controls.update();
+  controls.minDistance=sphere.radius*1.7;controls.maxDistance=dist*2.5;
+  const damping=controls.enableDamping;controls.enableDamping=false;controls.update();controls.enableDamping=damping;
 }
 async function baseModel(id){
   if(!models.has(id)){
@@ -115,7 +147,7 @@ $('previewBtn').onclick=async()=>{
   try{
     init3D();const model=await build(item);
     if(token!==selection||job!==previewGeneration||opening||xr)return;
-    removePreview();previewRoot=model;scene.add(model);previewShown=true;viewer.classList.add('is3d');resize();fit(model);renderPreview();
+    removePreview();previewRoot=model;scene.add(model);previewShown=true;viewer.classList.add('is3d');enablePreview();resize();fit(model);renderPreview();
     $('viewBadge').textContent='MODELO 3D';$('viewHint').textContent='Arraste para girar · pinça para aproximar';$('previewBtn').textContent='VOLTAR À IMAGEM';status('Modelo 3D pronto.',100);
   }catch(e){console.error(e);if(token===selection)status('Não foi possível carregar o modelo. Toque em visualizar para tentar novamente.');}
   finally{if(token===selection)$('previewBtn').disabled=false;}
@@ -161,7 +193,7 @@ function anchorUpdate(state,frame){
   }catch{}
 }
 function arLoop(time,frame){
-  const state=xr;if(!state||!frame||!state.space)return;
+  const state=xr;if(!state||state.closing||!frame||!state.space)return;
   // Always render even if a capability returns an error for this frame.
   try{
     state.pose=frame.getViewerPose(state.space);
@@ -199,24 +231,29 @@ function arLoop(time,frame){
 }
 function release(state){
   if(!state||state.released)return;state.released=true;
+  clearTimeout(state.endTimer);state.session.removeEventListener('end',state.onSessionEnd);
+  renderer.xr.removeEventListener('sessionend',state.onRendererEnd);
   try{state.hitSource?.cancel();state.anchor?.delete();}catch{}
   state.space?.removeEventListener('reset',state.onReset);
   scene?.remove(state.root,state.reticle);state.reticle.geometry.dispose();state.reticle.material.dispose();state.depth.dispose();
 }
 function finish(state){
-  release(state);if(xr!==state)return;
-  renderer.setAnimationLoop(null);xr=null;opening=false;arEpoch++;
+  // Native XR events can run microtasks BETWEEN listeners. Only restore the
+  // page after WebXRManager has released its framebuffer and camera state.
+  if(!state||xr!==state||renderer.xr.isPresenting)return;
+  renderer.setAnimationLoop(null);stopPreview();release(state);xr=null;opening=false;arEpoch++;
   $('arui').classList.add('hidden');$('page').style.visibility='';$('page').inert=false;
-  controls.enabled=true;$('arBtn').disabled=!selected;$('previewBtn').disabled=!selected;
+  $('arBtn').disabled=!selected;$('previewBtn').disabled=!selected;
   if(previewRoot)previewRoot.visible=true;
-  resize();if(previewRoot)fit(previewRoot);renderPreview();
+  camera.fov=38;camera.near=.01;camera.far=15;
+  resize();if(previewRoot){fit(previewRoot);enablePreview();}renderPreview();
 }
 async function startWebXR(item){
   if(!navigator.xr||!window.isSecureContext){status('Para usar a mesa, abra o link HTTPS em um celular compatível com AR.');return;}
   const epoch=++arEpoch;opening=true;previewGeneration++;$('arBtn').disabled=true;$('previewBtn').disabled=true;
   let sessionPromise;
   try{
-    init3D();controls.enabled=false;
+    init3D();stopPreview();
     // Keep requestSession in the button's user gesture. Hit-test is optional:
     // even a device without plane detection can use manual placement.
     sessionPromise=navigator.xr.requestSession('immersive-ar',{
@@ -230,10 +267,17 @@ async function startWebXR(item){
     const reticle=new THREE.Mesh(new THREE.RingGeometry(.026,.031,36),new THREE.MeshBasicMaterial({color:0xffab54,side:THREE.DoubleSide}));reticle.rotation.x=-Math.PI/2;reticle.visible=false;
     const state={session,root,reticle,depth:new DepthOcclusion(),space:null,hitSource:null,anchor:null,placed:false,loaded:false,manual:false,pose:null,samples:[],started:performance.now(),lastUI:0};
     xr=state;scene.add(root,reticle);if(previewRoot)previewRoot.visible=false;
-    // Let Three restore the XR framebuffer before resuming the page renderer.
-    session.addEventListener('end',()=>queueMicrotask(()=>finish(state)),{once:true});
+    state.onRendererEnd=()=>finish(state);
+    state.onSessionEnd=()=>{
+      state.closing=true;state.depth.uniforms.uDepthActive.value=0;
+      // Fallback for a session that failed before the renderer could start.
+      // A task (not a microtask) lets all native end listeners complete first.
+      state.endTimer=setTimeout(()=>finish(state),0);
+    };
+    renderer.xr.addEventListener('sessionend',state.onRendererEnd);
+    session.addEventListener('end',state.onSessionEnd,{once:true});
     resetScan();$('page').style.visibility='hidden';$('page').inert=true;
-    await renderer.xr.setSession(session);if(xr!==state)return;
+    await renderer.xr.setSession(session);if(xr!==state||state.closing)return;
     state.space=renderer.xr.getReferenceSpace();
     state.onReset=e=>{
       if(state.placed&&!state.anchor&&e.transform){state.root.matrix.premultiply(new THREE.Matrix4().fromArray(e.transform.matrix).invert());state.root.matrixWorldNeedsUpdate=true;}
@@ -259,7 +303,7 @@ async function startWebXR(item){
     console.warn('AR:',e);
     const state=xr;
     if(state){try{await state.session.end();}catch{}finish(state);}
-    opening=false;controls&&(controls.enabled=true);$('arBtn').disabled=!selected;$('previewBtn').disabled=!selected;
+    opening=false;if(!xr)enablePreview();$('arBtn').disabled=!selected;$('previewBtn').disabled=!selected;
     status(e.name==='NotAllowedError'?'A câmera não foi autorizada. Toque em Ver na mesa para tentar novamente.':'AR indisponível neste navegador. Você pode usar a visualização 3D.');renderPreview();
   }
 }
